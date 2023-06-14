@@ -1,8 +1,15 @@
+ -*- coding: utf-8 -*-
+"""
+Created on Dec 02 2021
+
+@author: ymamo
+"""
+
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jun 13th 2023
+Created on Sat Nov 10 07:02:35 2018
 
-@author: Alicia Vidler recognising contribution from opensource work by Tom Pike
+@author: ymamo
 """
 
 from NetScape import NetScape
