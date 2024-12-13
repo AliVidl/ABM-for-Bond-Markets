@@ -1,25 +1,10 @@
-"""
-This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
-Copyright (c) 2018 Tom Pike
-Licensed under the MIT License
-Significant alterations have occurred and is copyright 2023 Alicia Vidler
+# """
+# This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
+# Copyright (c) 2018 Tom Pike
+# Licensed under the MIT License
+# Significant alterations have occurred and is copyright 2023 Alicia Vidler
 
 
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Nov 10 07:02:35 2018
-
-@author: ymamo
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov  2 05:50:24 2018
-
-@author: Tom Pike
-
-Sugarscape Model as base for test for ANT and MAP
-"""
 
 
 from mesa import Agent
@@ -27,6 +12,11 @@ import math
 from scipy.stats.mstats import gmean
 from numpy import round
 from collections import defaultdict
+
+from global_data import append_to_df
+
+import csv
+import os
 
 class NetAgent(Agent):
     
@@ -56,6 +46,8 @@ class NetAgent(Agent):
         self.welfare = self.calc_welfare()
         self.status = "alive"
         self.price = defaultdict(list)
+        
+
         
         
     def __str__(self):
@@ -131,7 +123,7 @@ class NetAgent(Agent):
         
         return len(this_cell) <= 1
     
-    def find_trader(self):
+    def find_trader (self):
         '''
         Helper Function for self.trade(): 
             
@@ -147,9 +139,7 @@ class NetAgent(Agent):
             this_cell = self.model.grid.get_cell_list_contents([n])
             for item in this_cell: 
                 if str(item) == "Agent":
-                    traders.append(item) #for intial step  2 agents 
-                                        #may be on same grid
-                                        #based on random selection    
+                    traders.append(item) 
         return traders
     
     def draft_trade(self, sugar, spice, partner):
@@ -258,8 +248,7 @@ class NetAgent(Agent):
         
         #Provides possibility of not moving
         neighbors.append(self.pos)
-        # print ([self.assess_sustenance(pos) for pos in neighbors])
-        # Look for location with the most welfare
+    
         max_welfare = max([self.assess_sustenance(pos) for pos in neighbors])
         
         candidates = [pos for pos in neighbors if \
@@ -268,12 +257,12 @@ class NetAgent(Agent):
             self.random.shuffle(neighbors)
             final_candidates =  neighbors
         else: 
-            # Narrow down to the nearest ones
+            
             min_dist = min([self.get_distance(self.pos, pos) for pos in candidates])
             final_candidates = [pos for pos in candidates if self.get_distance(self.pos,
                 pos) == min_dist]
             self.random.shuffle(final_candidates)
-        #remove link from Agent to old position
+ 
         if final_candidates[0] == self.pos: 
             pass
         else: 
@@ -289,36 +278,35 @@ class NetAgent(Agent):
         self.assess_welfare()
         
         traders = self.find_trader()
-        #av
+     
         price = 0
         self.model.price_record[self.model.step_num][self.unique_id]= (0,0)
+       
 
 
         if len(traders) > 0: 
-            self.random.shuffle(traders) #randomize who trade with
+            self.random.shuffle(traders) 
         else: 
             return
         
         
         for partner in traders: 
-        #trade_benefit = True
-        #while trade_benefit:     
-            # Per trade formulation, and to prevent divison by zero warning
+       
             if self.MRS == partner.MRS: 
-                pass
-                #trade_benefit = False
+                continue
+           
         
             else: 
                 #Calculate Price
                 price = gmean([self.MRS, partner.MRS])
                
                 #Draft Trade
-                if price > 1: 
+                if price > 0:     
                     spice = price
-                    sugar = 1
+                    sugar = 0.001   
                 else:
-                    sugar = 1/price
-                    spice = 1
+                    continue
+                 
                     
                     
                     
@@ -330,13 +318,12 @@ class NetAgent(Agent):
                         self.accumulations[2] -= spice
                         partner.accumulations[2] += spice
                         partner.accumulations[1] -= sugar
-                        #AV 
-                        # #self.model.price_record[self.model.step_num].append(price)
+                        
                         self.assess_welfare()
                         partner.assess_welfare()
                     else: 
-                        pass
-                        #trade_benefit = False
+                        continue
+
                         
                         
                 else: 
@@ -348,23 +335,17 @@ class NetAgent(Agent):
                         partner.accumulations[1] += sugar
                         self.assess_welfare()
                         partner.assess_welfare()
-                        # AV self.model.price_record[self.model.step_num].append(price)
+                       
                     else: 
-                        pass
-                        #trade_benefit = False
-            #AV
-            self.model.price_record[self.model.step_num][self.unique_id]= (price, partner.unique_id)
+                        continue
+
+        self.model.price_record[self.model.step_num][self.unique_id]= (price, partner.unique_id)
 
         
     
     def eat(self):
-        '''
-        Agent accumulates sugar and spice from grid minus metabolism value
-        
-        If agent at 0 or less for either sugar or spice, dies 
-               
-        '''
-        
+
+
         this_cell = self.model.grid.get_cell_list_contents([self.pos])
         for res in this_cell:
             if res.type == "resource":
@@ -377,7 +358,7 @@ class NetAgent(Agent):
         if self.accumulations[1] <= 0.1 or self.accumulations[2] <= 0.1: 
 
             self.status = "dead"
-            #print ("agent dead: ", self.unique_id )
+           
             self.model.ml.remove(self)
             self.model.grid.remove_agent(self)
             
@@ -385,8 +366,7 @@ class NetAgent(Agent):
     
                 
     ########################################################################
-    #
-    #
+    #    #
     #             STEP FUNCTION
     #
     ######################################################################    
@@ -401,44 +381,32 @@ class NetAgent(Agent):
 
         
         if self.status == "dead":
-           self.pos =(99,99)
-           self.save2()    #av 5 july
-           return
+            self.pos = (99, 99)
+            self.save_data(dead=True)  
+            return
         self.trade()
-        self.save3() #30 oct 22
+        self.save_data(dead=False)
+    
+    
     
 
-
-    def save2(self):
-        #av 
-        import csv
-
-       # modified as dictionaries are not working   
-
-        row = [self.model.run, self.model.step_num, self.status, self.unique_id, self.capability, 
-              self.metabolism, self.accumulations, self.welfare, self.pos, self.MRS] 
-        
-        with open('Test', 'a') as f:   
-            # using csv.writber method from CSV package
-            write = csv.writer(f) 
-            write.writerow(row)
-        
-    
-    def save3(self):
-        #av 
-        import csv
-
-       # modified as dictionaries are not working   
-
-        row = [self.model.run, self.model.step_num, self.status, self.unique_id, self.capability, 
-              self.metabolism, self.accumulations, self.welfare, self.pos, self.MRS, self.model.price_record[self.model.step_num][self.unique_id][0], self.model.price_record[self.model.step_num][self.unique_id][1]] 
-        
-        
-        with open('Test', 'a') as f:   
-            # using csv.writber method from CSV package
-            write = csv.writer(f) 
-            write.writerow(row)  
-        
-        #  self.model.price_record[self.model.step_num][self.unique_id][0], self.model.price_record[self.model.step_num][self.unique_id][1]
-        
-        
+    def save_data(self, dead):
+        row = {
+            "Run": self.model.run,
+            "Step Number": self.model.step_num,
+            "Status": self.status,
+            "Unique ID": self.unique_id,
+            "Capability": self.capability['vision'],
+           
+            "Metabolism Sug Bolism": self.metabolism['sug_bolism'],
+            "Metabolism Spice Bolism": self.metabolism['spice_bolism'],
+            "Accumulations Sugar": self.accumulations[1],
+            "Accumulations Spice": self.accumulations[2],
+            "Welfare Sug": self.welfare[0],
+            "Welfare SPICE": self.welfare[1],
+            "Pos": str(self.pos),
+            "MRS": str(self.MRS),
+            "Price": self.model.price_record[self.model.step_num][self.unique_id][0] if not dead else None,
+            "TradePartnerUID": self.model.price_record[self.model.step_num][self.unique_id][1] if not dead else None
+        }
+        append_to_df(row)
