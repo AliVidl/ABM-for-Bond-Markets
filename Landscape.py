@@ -1,12 +1,15 @@
-"""
-This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
-Copyright (c) 2018 Tom Pike
-Licensed under the MIT License
-Significant alterations have occurred and is copyright 2023 Alicia Vidler
+# """
+# This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
+# Copyright (c) 2018 Tom Pike
+# Licensed under the MIT License
+# Significant alterations have occurred and is copyright 2023 Alicia Vidler
 
 
 # -*- coding: utf-8 -*-
-Oringinal notes Created on Mon Nov  5 06:14:39 2018
+"""
+Created on Mon Nov  5 06:14:39 2018
+
+
 @author: Tom Pike
 
 Sugarscape Model as base for test for ANT and MAP
@@ -80,12 +83,11 @@ def outer_circle(max_r, inner, other = None, other2 = None):
             if i not in inner: 
                 inner.append(i)
                 
-    #print (len(inner))
     if other2: 
         for i in other2: 
             if i not in inner: 
                 inner.append(i) 
-    #print (len(inner))
+
     for i in whole: 
         if i in inner: 
             pass
@@ -163,13 +165,10 @@ def make_quad(grad, quad, x_thrd, y_thrd, height, width):
         if quad == 1 or quad == 3: 
             quad_land[(k[0]+quad1, k[1]+quad2)] = v
         else: 
-            #if (k[0]+quad1, k[1]+quad2) in quad_land.keys():
-            #    pass
-            #else: 
+            
             quad_land[(k[0]+quad1, k[1]+quad2)] = v 
          
-     
-     #print (quad_land)
+   
      return quad_land
          
          
