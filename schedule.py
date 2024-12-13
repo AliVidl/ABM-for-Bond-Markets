@@ -1,3 +1,9 @@
+# """
+# This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
+# Copyright (c) 2018 Tom Pike
+# Licensed under the MIT License
+# Significant alterations have occurred and is copyright 2023 Alicia Vidler
+
 # -*- coding: utf-8 -*-
 """
 Sugarscape Model as base for test for ANT and MAP
