@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov  2 05:50:24 2018
+# """
+# This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
+# Copyright (c) 2018 Tom Pike
+# Licensed under the MIT License
+# Significant alterations have occurred and is copyright 2023 Alicia Vidler
 
-@author: Tom Pike
-
-Sugarscape Model as base for test for ANT and MAP
-"""
 
 
 from mesa import Agent
@@ -27,7 +25,7 @@ class resource(Agent):
         return "Resource"
         
     
-    ########################################################################
+    ######################################################################
     #
     #
     #             STEP FUNCTION
