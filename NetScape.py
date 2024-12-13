@@ -5,408 +5,184 @@
 # Significant alterations have occurred and is copyright 2023 Alicia Vidler
 
 
-
-
-from mesa import Agent
-import math
-from scipy.stats.mstats import gmean
-from numpy import round
 from collections import defaultdict
+import time
+import itertools
 
-from global_data import append_to_df
+from mesa import Model
+from mesa.space import MultiGrid
+from mesa.datacollection import DataCollector
 
-import csv
-import os
 
-class NetAgent(Agent):
-    
-    '''
-    
-    Agent initiation creates:
-        -identify type
-        -agent position on grid
-        -Neighborhood type
-        -Accumulation: accounts for how much agents has
-        -Capability: accounts for what agent can do 
-    '''
-    
-    def __init__(self, unique_id, pos, model, metabolism = {},\
-                 accumulations = {}, capability = {}, Moore = False):
-        super().__init__(unique_id, model)
-        self.type = "agent"
-        self.pos = pos
-        self.moore = Moore
-        #Data set up = {sug_bolism : Sugar Value, spice_bolism : Spice Value}
-        self.metabolism = metabolism
-        #Data set up = {1 : Sugar Value, 2 : Spice Value}
-        self.accumulations = accumulations
-        self.capability = capability
-        #MRS = Marginal Rate of Substitution
-        self.MRS = self.calc_MRS()
-        self.welfare = self.calc_welfare()
-        self.status = "alive"
-        self.price = defaultdict(list)
-        
+import multilevel_mesa as mlm
 
-        
-        
-    def __str__(self):
-        return "Agent"
+import Landscape
+import ResourceScape as R
+import NetAgent as N
+import recorder
+import numpy as np
+
+
+
+
+class NetScape(Model):
     
-    ##########################################################################
-    #
-    #         Helper Functions
-    #
-    #########################################################################   
-    
-    
-    def calc_MRS(self):
-        """
-        Calculates agent's Marginal Rate of Substitution (MRS)
-        preference of wanting more sugar or spice
-        
-        Formulation  GrAs p. 102
-        """
-                        
-        MRS =  (self.accumulations[2.0]/self.metabolism["spice_bolism"])/ \
-                   (self.accumulations[1.0]/self.metabolism["sug_bolism"])
-        return MRS
-    
-    def calc_welfare(self):
-        
-        '''
-        Calculates Agents Welfare based on sugar and spice
-        accumulation and metabolism
-        
-        Formulation GrAS p. 97
-        '''
-        
-        
-        
-        meta = self.metabolism["sug_bolism"] + self.metabolism["spice_bolism"]
-        sug_welfare = self.accumulations[1.0]**(self.metabolism["sug_bolism"]/meta)
-        spice_welfare = self.accumulations[2.0]**(self.metabolism["spice_bolism"]/meta)
-        
-       
-        if isinstance(sug_welfare, complex):
-            sug_welfare = 0
+   
+    def __init__(self, run, height=50, width=50, initial_population=4, \
+                 Moore= False, torus= True, regrow=1, seed=42, \
+                 vision_array=None, spice_array=None, sugar_array=None, \
+                    sugar_range=(25, 50), spice_range=(25, 50)):
+
            
-            
-        if isinstance(spice_welfare, complex): 
-            spice_welfare = 0
-               
-            
-        return (sug_welfare, spice_welfare)
-    
-    def get_distance(self, pos_1, pos_2):
-        """ 
-        Get the distance between two points
-        
+        '''
         Args:
-            pos_1, pos_2: Coordinate tuples for both points.
-        """
-        x1, y1 = pos_1
-        x2, y2 = pos_2
-        dx = x1 - x2
-        dy = y1 - y2
-        return math.sqrt(dx ** 2 + dy ** 2)
-    
-    def no_agent(self, pos):
-        
-        '''
-        Helper Function for self.move(): 
+            height - y axis of grid_size
+            width - x axis of grid size
+            initial_population - number of agents starting
+            moore - type of neighborhood
+            torus - whether or no world wraps
+            regrow - amout each resource grows bas each step
+            process - Number of additonal proces by agents
+            0 = Movement/Survive; 1 = +trade, 2 = +
             
-        Checks if anything in cell, all cells have resource
-        so if list more than 1 item must contain agent
+        Initial Parameters: 
+            Multigrid
+            ActivationbyBreed (see schedule)
+            Num_Agents counter to account for each agent number
+            timekeeper - dictionary to keep track of time for each section
+            start_time - create initial time
+            datacollector to collect agent data of model
         '''
-        this_cell = self.model.grid.get_cell_list_contents([pos])
+      
+      
+
+        self.step_num = 0
+        self.run = run
+        self.height = height
+        self.width = width
+        self.initial_population = initial_population
+        self.num_agents = 0
         
-        return len(this_cell) <= 1
-    
-    def find_trader (self):
-        '''
-        Helper Function for self.trade(): 
-            
-        gets_agents from nearby to trade with
-        '''
-        
-        
-        traders = []
-        neighbors = [i for i in self.model.grid.get_neighborhood(self.pos, \
-                   self.moore, radius = self.capability['vision'])]
-                
-        for n in neighbors: 
-            this_cell = self.model.grid.get_cell_list_contents([n])
-            for item in this_cell: 
-                if str(item) == "Agent":
-                    traders.append(item) 
-        return traders
-    
-    def draft_trade(self, sugar, spice, partner):
-        
-        meta = self.metabolism["sug_bolism"] + self.metabolism["spice_bolism"]
-        p_meta = partner.metabolism["sug_bolism"] + partner.metabolism["spice_bolism"]
-        
-        if (self.accumulations[2.0] - spice) <= 0 or \
-           (partner.accumulations[1.0] - sugar <= 0): 
-               return False
-                
-        spice_gain_wel = \
-        (partner.accumulations[2.0]+spice)**(partner.metabolism["spice_bolism"]/p_meta)
-        spice_loss_wel = \
-        (self.accumulations[2.0]-spice)**(self.metabolism["spice_bolism"]/meta)
-        sug_gain_wel = \
-        (self.accumulations[1.0]+sugar)**(self.metabolism["sug_bolism"]/meta)
-        sug_loss_wel = \
-        (partner.accumulations[1.0]-sugar)**(partner.metabolism["sug_bolism"]/p_meta)
-       
-        
-        
-        MRS_self_draft = ((self.accumulations[2.0]-spice)/self.metabolism["spice_bolism"])/ \
-               ((self.accumulations[1.0]+sugar)/self.metabolism["sug_bolism"])
-        
-        MRS_partner_draft = ((partner.accumulations[2.0]+spice)/partner.metabolism["spice_bolism"])/ \
-               ((partner.accumulations[1.0]-sugar)/partner.metabolism["sug_bolism"])
-        
-        if (spice_gain_wel * sug_loss_wel) >= (partner.welfare[0] * partner.welfare[1]) and \
-            (sug_gain_wel * spice_loss_wel) >= (self.welfare[0] * self.welfare[1]) and (MRS_self_draft >=\
-            MRS_partner_draft): 
-                return True
-        else:
-                return False
-        
-             
-        
-    def poss_welfare(self,sugar, spice):
-        
-        meta = self.metabolism["sug_bolism"] + self.metabolism["spice_bolism"]
-        sug_welfare = sugar**(self.metabolism["sug_bolism"]/meta)
-        spice_welfare = spice**(self.metabolism["spice_bolism"]/meta)
-        
-       
-        if isinstance(sug_welfare, complex):
-            sug_welfare = 0
-           
-            
-        if isinstance(spice_welfare, complex): 
-            spice_welfare = 0
-               
-            
-        return (sug_welfare, spice_welfare)
-    
-    
-    def assess_sustenance(self, pos): 
-        '''
-        Helper Function to self.move()
-        
-        Identifies what sites will give most welfare
-        
-        GrAS p. 98; Appendix C
-        '''       
-        
-        this_cell = self.model.grid.get_cell_list_contents([pos])
-        for agent in this_cell:
-            if agent.type == "resource":
-                poss_sug = self.accumulations[1.0] + agent.value_sug
-                poss_spice = self.accumulations[2.0] +agent.value_spice
-                
-                welfare_poss = self.poss_welfare(poss_sug, poss_spice)
-                return (welfare_poss[0] * welfare_poss[1])
-        return 0
-    ##########################################################################
-    #
-    #          Principle Step Functions
-    #
-    #########################################################################   
-    
-    
-    def assess_welfare(self):
-        '''
-        Assess need for sugar and spice
-        Welfare function  GrAS p. 97
-        Determine Marignal Rate of Substitution (MRS) 
-        GrAS p. 102
-        '''
-                      
-        self.welfare =self.calc_welfare()
-    
-        self.MRS = self.calc_MRS()
-    
-     
-    def move(self):
-        '''
-        Movement function 
-        
-        GrAS p. 98-99
-        
-        '''
-        self.assess_welfare()        
-        # Get neighborhood within vision
-        neighbors = [i for i in self.model.grid.get_neighborhood(self.pos, \
-                    self.moore, radius=self.capability["vision"]) \
-                    if self.no_agent(i)]
-        
-        #Provides possibility of not moving
-        neighbors.append(self.pos)
-    
-        max_welfare = max([self.assess_sustenance(pos) for pos in neighbors])
-        
-        candidates = [pos for pos in neighbors if \
-                      self.assess_sustenance(pos) == max_welfare]
-        if len(candidates) == 0: 
-            self.random.shuffle(neighbors)
-            final_candidates =  neighbors
-        else: 
-            
-            min_dist = min([self.get_distance(self.pos, pos) for pos in candidates])
-            final_candidates = [pos for pos in candidates if self.get_distance(self.pos,
-                pos) == min_dist]
-            self.random.shuffle(final_candidates)
+        self.ml = mlm.MultiLevel_Mesa(self)
+        self.grid = MultiGrid(self.height, self.width, torus=True)
+        self.regrow = regrow
+        self.running = True
+        self.price_record = defaultdict(defaultdict)  
  
-        if final_candidates[0] == self.pos: 
-            pass
-        else: 
-            self.model.grid.move_agent(self, final_candidates[0])
-            
-    def trade(self):
+        
         '''
-        Trade Function 
+        Recorders
+          Start datacollector
+          Start time recorder
+        '''
+        self.start_time = time.time()
         
-        GrAS p. 105
+        self.datacollector = DataCollector(\
+                             model_reporters = {"MetaAgent": recorder.survivors}, \
+                             tables ={"Health":["Agent", "Step", "Sugar_Level", \
+                                                "Spice_Level"], \
+                             "Time":["Time Per Step"]})
+        
+        
         '''
         
-        self.assess_welfare()
+        Creates the landscape:
+            Fours mounds 2 sugar, 2 spice located- 1 in each quadrant
+            imports landscape module to account for various landscape sizes
+        '''
+        self.resource_dict = {}
         
-        traders = self.find_trader()
-     
-        price = 0
-        self.model.price_record[self.model.step_num][self.unique_id]= (0,0)
-       
+        landscape = Landscape.create_landscape(height, width)
 
-
-        if len(traders) > 0: 
-            self.random.shuffle(traders) 
-        else: 
-            return
         
-        
-        for partner in traders: 
-       
-            if self.MRS == partner.MRS: 
-                continue
-           
-        
-            else: 
-                #Calculate Price
-                price = gmean([self.MRS, partner.MRS])
+        for k,v in landscape.items(): 
+            resource =  R.resource(k, self, v, self.regrow)
+            adjusted_pos = self.grid.torus_adj((resource.pos[0], resource.pos[1]))  #
+            self.grid.place_agent(resource, adjusted_pos)
+          
+            self.ml.add(resource)
                
-                #Draft Trade
-                if price > 0:     
-                    spice = price
-                    sugar = 0.001   
-                else:
-                    continue
-                 
-                    
-                    
-                    
-                
-                if self.MRS > partner.MRS: 
-                    conduct = self.draft_trade(sugar, spice, partner)
-                    if conduct == True: 
-                        self.accumulations[1] += sugar
-                        self.accumulations[2] -= spice
-                        partner.accumulations[2] += spice
-                        partner.accumulations[1] -= sugar
-                        
-                        self.assess_welfare()
-                        partner.assess_welfare()
-                    else: 
-                        continue
-
-                        
-                        
-                else: 
-                    conduct = partner.draft_trade(sugar, spice, self)
-                    if conduct == True:
-                        self.accumulations[1] -= sugar
-                        self.accumulations[2] += spice
-                        partner.accumulations[2] -= spice
-                        partner.accumulations[1] += sugar
-                        self.assess_welfare()
-                        partner.assess_welfare()
-                       
-                    else: 
-                        continue
-
-        self.model.price_record[self.model.step_num][self.unique_id]= (price, partner.unique_id)
-
         
-    
-    def eat(self):
-
-
-        this_cell = self.model.grid.get_cell_list_contents([self.pos])
-        for res in this_cell:
-            if res.type == "resource":
-                self.accumulations[1] += (res.value_sug - self.metabolism["sug_bolism"])
-                self.accumulations[2] += (res.value_spice - self.metabolism["spice_bolism"])
-                res.value_sug = 0
-                res.value_spice = 0
-    
-    def die(self): 
-        if self.accumulations[1] <= 0.1 or self.accumulations[2] <= 0.1: 
-
-            self.status = "dead"
+        for a,x,y in self.grid.coord_iter():
+            if a == set():
+                resource = R.resource((x,y), self, \
+                                      (self.random.randrange(0,2), \
+                                       self.random.randrange(0,2)),self.regrow)
+                self.grid.place_agent(resource, (resource.pos[0], resource.pos[1]))
+                #POINT
+                self.ml.add(resource)
+                        
            
-            self.model.ml.remove(self)
-            self.model.grid.remove_agent(self)
+        '''
+        Creates the agents:
             
+        '''
+        '''  AV reset vision, metabolism HERE '''
     
-    
-                
-    ########################################################################
-    #    #
-    #             STEP FUNCTION
-    #
-    ######################################################################    
-    
-    
-    def step(self):
+        pos_array = list(self.ml.agents_by_type[R.resource].keys())
+        self.random.shuffle(pos_array)
+        
+        
+        # If arrays are not provided, generate them
+        if vision_array is None:
+            vision_array = np.random.randint(1, 6, self.initial_population)
+        if spice_array is None:
+            spice_array = np.random.randint(1, 6, self.initial_population)
+        if sugar_array is None:
+            sugar_array = np.random.randint(1, 6, self.initial_population)
+
+        # AV edit
+        self.sugar_range = sugar_range
+        self.spice_range = spice_range
+
+
+
+
+        for n in range(self.initial_population):
+          
+            
+            sugar = self.random.randrange(*self.sugar_range)
+            spice = self.random.randrange(*self.spice_range)
+            
+            # sugar = self.random.randrange(49,50)
+            # spice = self.random.randrange(49,50)
+
        
-        # Core Movement Functions
-        self.move()
-        self.eat()
-        self.die()
+            
+            #GrAS p.108
+            sug_bolism = sugar_array[n]
+            spice_bolism = spice_array[n]
+            #GrAS p. 108
+            vision = vision_array[n]
+            neighbors = Moore
+            a = N.NetAgent(n, pos_array[n], self, \
+                                 {"sug_bolism": sug_bolism, \
+                                 "spice_bolism": spice_bolism}, \
+                                 {1 : sugar, 2: spice}, {"vision": vision}, \
+                                 neighbors)
+            #POINT
+            self.ml.add(a ) 
+            self.grid.place_agent(a,pos_array[n])
 
         
-        if self.status == "dead":
-            self.pos = (99, 99)
-            self.save_data(dead=True)  
-            return
-        self.trade()
-        self.save_data(dead=False)
-    
-    
-    
+     
+    ######################################################################
+    #
+    #
+    #       Step function
+    #
+    ########################################################################    
+        
+        
+    def step(self):
+        time_step0 = time.time() 
+        self.ml.step() 
+        time_step1 = time.time() - time_step0
+        self.datacollector.collect(self)
+        recorder.get_agent_health(self)
+        recorder.get_time(self,time_step1)
 
-    def save_data(self, dead):
-        row = {
-            "Run": self.model.run,
-            "Step Number": self.model.step_num,
-            "Status": self.status,
-            "Unique ID": self.unique_id,
-            "Capability": self.capability['vision'],
-           
-            "Metabolism Sug Bolism": self.metabolism['sug_bolism'],
-            "Metabolism Spice Bolism": self.metabolism['spice_bolism'],
-            "Accumulations Sugar": self.accumulations[1],
-            "Accumulations Spice": self.accumulations[2],
-            "Welfare Sug": self.welfare[0],
-            "Welfare SPICE": self.welfare[1],
-            "Pos": str(self.pos),
-            "MRS": str(self.MRS),
-            "Price": self.model.price_record[self.model.step_num][self.unique_id][0] if not dead else None,
-            "TradePartnerUID": self.model.price_record[self.model.step_num][self.unique_id][1] if not dead else None
-        }
-        append_to_df(row)
+        self.step_num += 1
+            
+            
+
