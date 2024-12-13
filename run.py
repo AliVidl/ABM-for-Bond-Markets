@@ -1,36 +1,49 @@
-# -*- coding: utf-8 -*-
+
 """
-Created on Dec 02 2021
+This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
+Copyright (c) 2018 Tom Pike
+Licensed under the MIT License
+Significant alterations have occurred and is copyright 2023 Alicia Vidler
 
-@author: Alicia Vidler
-"""
-
-
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Nov 10 07:02:35 2018
-
-@author: ymamo
 """
 
 from NetScape import NetScape
 import NetAgent
+#import visualization
 import pickle
 import recorder
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from global_data import write_to_csv
 
-survivors = []
-time = []
-price_df = {}
 
-for run in range(100):
+for run in range(10):
+   
     print ("Run: ", run)
-    test = NetScape(run, height = 50, width = 50, initial_population = 4, regrow = 0, seed = 42)
+   
     
-    for s in range(4000):
+    sugar_range = (40, 55)      # Agent initial range of resources
+    spice_range = (40, 55)      # Agent intial range of resource =2
+    initial_population = 4 #20      # number of agents (overrides netscape assumption)
+    vision_array = np.random.randint(1, 50, initial_population)  #range for vision assigned to agents
+    spice_array = np.random.randint(1, 2, initial_population)   # Metabolism to resouce 1 range, randomly asigned to agents at step -0
+    sugar_array = np.random.randint(1, 2, initial_population)   # Metabolism 2 for agents
+
+    test = NetScape(run, height = 50, width = 50,  initial_population=initial_population, regrow = 0, seed = 0, \
+                     vision_array = vision_array, spice_array =spice_array, sugar_array=sugar_array, \
+                          sugar_range=sugar_range, spice_range=spice_range, torus= True)
+   
+   
+  
+    for s in range(150):
         test.step()
 
-    df = test.datacollector.get_table_dataframe("Time") 
-    price_df["Run"+str(run)] = test.price_record
-    agents = recorder.survivors(test)
-    survivors.append(agents)
-    time.append(df["Time Per Step"].sum())
+    # write to DF and csv in Global_data.py
+        
+    write_to_csv()
+
+
+############
+
+
