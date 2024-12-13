@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov  9 06:18:02 2018
-
-@author: ymamo
-"""
+# This code includes work derived from https://github.com/tpike3/SugarScape?tab=MIT-1-ov-file
+# Copyright (c) 2018 Tom Pike
+# Licensed under the MIT License
 
 from mesa.visualization.ModularVisualization import ModularServer
 from mesa.visualization.modules import CanvasGrid, ChartModule
