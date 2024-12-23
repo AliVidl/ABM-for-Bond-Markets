@@ -1,3 +1,5 @@
+An Agentic AI approach to modeling bilateral capital market transactions between market makers (inter dealer) and with clients. Code and research can be cited from this link: https://arxiv.org/abs/2405.02849
+
 # ABM-for-Bond-Markets
 
 Tested on Python 3.11.9 (Mesa 1.1.1 
